@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Searcher</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+
+        header {
+            background-color: #333;
+            color: #fff;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        main {
+            padding: 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        input[type="text"] {
+            padding: 0.5rem;
+            font-size: 1rem;
+        }
+
+        h1, h2 {
+            margin-bottom: 0.5rem;
+        }
+
+        .movie-card {
+            border: 1px solid #ccc;
+            margin: 0.5rem;
+            padding: 1rem;
+            cursor: pointer;
+            background-color: #fff;
+            transition: background-color 0.3s ease;
+            position: relative;
+            width: 200px;
+        }
+
+        .movie-card:hover {
+            background-color: #f5f5f5;
+        }
+
+        .detail-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .similar-movie {
+            cursor: pointer;
+            margin: 0.5rem;
+            background-color: #eee;
+            padding: 0.5rem;
+            border-radius: 4px;
+            transition: background-color 0.3s ease;
+        }
+
+        .similar-movie:hover {
+            background-color: #ddd;
+        }
+
+        .category-badge {
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: #3498db;
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 8px 0 0 0;
+            font-size: 0.8rem;
+        }
+
+        .tv-series-badge {
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: #e74c3c;
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 8px 0 0 0;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Movie Searcher</h1>
+        <input type="text" id="searchInput" placeholder="Search for a movie">
+    </header>
+    <main id="mainContent"></main>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        const apiKey = '1bfdbff05c2698dc917dd28c08d41096';
+        const apiUrl = 'https://api.themoviedb.org/3';
+
+        const searchInput = document.getElementById('searchInput');
+        const mainContent = document.getElementById('mainContent');
+
+        // Event listener for search input
+        searchInput.addEventListener('input', debounce(searchMovies, 300));
+
+        // Fetch upcoming movies on page load
+        fetchUpcomingMovies();
+
+        // Fetch upcoming movies from API
+        function fetchUpcomingMovies() {
+            axios.get(`${apiUrl}/movie/upcoming?api_key=${apiKey}`)
+                .then(response => {
+                    // Enhance movie data with TV series information 
+                    const enhancedMovies = response.data.results.map(movie => {
+                        return {
+                            ...movie,
+                            isTVSeries: movie.original_language.toLowerCase() === 'en' && movie.original_name !== undefined,
+                        };
+                    });
+                    displayMovies(enhancedMovies);
+                })
+                .catch(error => console.error('Error fetching upcoming movies:', error));
+        }
+
+        // Search movies based on user input
+        function searchMovies() {
+            const query = searchInput.value;
+            if (query.trim() === '') {
+                fetchUpcomingMovies();
+                return;
+            }
+
+            axios.get(`${apiUrl}/search/movie?api_key=${apiKey}&query=${query}`)
+                .then(response => {
+                    // Enhance movie data with TV series information 
+                    const enhancedMovies = response.data.results.map(movie => {
+                        return {
+                            ...movie,
+                            isTVSeries: movie.original_language.toLowerCase() === 'en' && movie.original_name !== undefined,
+                        };
+                    });
+                    displayMovies(enhancedMovies);
+                })
+                .catch(error => console.error('Error searching movies:', error));
+        }
+
+        // Display movie cards
+        function displayMovies(movies) {
+            mainContent.innerHTML = '';
+            movies.forEach(movie => {
+                const movieCard = document.createElement('div');
+                movieCard.className = 'movie-card';
+
+                // Check if the movie is cam recorded
+                const isCamRecorded = checkCamRecorded(movie);
+
+                // Add a badge for cam recorded movies
+                if (isCamRecorded) {
+                    const camRecordedBadge = document.createElement('div');
+                    camRecordedBadge.className = 'cam-recorded-badge';
+                    camRecordedBadge.textContent = 'Cam Recorded';
+                    movieCard.appendChild(camRecordedBadge);
+                }
+
+                // Add a badge for categories/genres
+                const categories = movie.genre_ids.map(genreId => getGenreName(genreId)).filter(Boolean);
+                if (categories.length > 0) {
+                    const categoryBadge = document.createElement('div');
+                    categoryBadge.className = 'category-badge';
+                    categoryBadge.textContent = categories.join(', ');
+                    movieCard.appendChild(categoryBadge);
+                }
+
+                // Add a badge for TV series
+                if (movie.isTVSeries) {
+                    const tvSeriesBadge = document.createElement('div');
+                    tvSeriesBadge.className = 'tv-series-badge';
+                    tvSeriesBadge.textContent = 'TV Series';
+                    movieCard.appendChild(tvSeriesBadge);
+                }
+
+                movieCard.innerHTML += `
+                    <h2>${movie.title}</h2>
+                    <img src="http://image.tmdb.org/t/p/w500/${movie.poster_path}" alt="${movie.title}">
+                `;
+                movieCard.addEventListener('click', () => showMovieDetails(movie.id));
+                mainContent.appendChild(movieCard);
+            });
+        }
+
+        // Show detailed information about a movie
+        function showMovieDetails(movieId) {
+            axios.get(`${apiUrl}/movie/${movieId}?api_key=${apiKey}`)
+                .then(response => {
+                    const movie = response.data;
+                    const detailContainer = document.createElement('div');
+                    detailContainer.className = 'detail-container';
+                    detailContainer.innerHTML = `
+                        <div>
+                            <h2>${movie.title}</h2>
+                            <p>${movie.overview}</p>
+                        </div>
+                        <img src="http://image.tmdb.org/t/p/w500/${movie.poster_path}" alt="${movie.title}">
+                    `;
+
+                    // Fetch and display similar movies
+                    axios.get(`${apiUrl}/movie/${movieId}/similar?api_key=${apiKey}`)
+                        .then(similarResponse => {
+                            const similarMovies = similarResponse.data.results;
+                            if (similarMovies.length > 0) {
+                                const similarContainer = document.createElement('div');
+                                similarContainer.className = 'similar-movies';
+                                similarMovies.forEach(similarMovie => {
+                                    const similarMovieElem = document.createElement('div');
+                                    similarMovieElem.className = 'similar-movie';
+                                    similarMovieElem.textContent = similarMovie.title;
+                                    similarMovieElem.addEventListener('click', () => showMovieDetails(similarMovie.id));
+                                    similarContainer.appendChild(similarMovieElem);
+                                });
+                                detailContainer.appendChild(similarContainer);
+                            }
+
+                            // Add a back button to return to the main page
+                            const backButton = document.createElement('button');
+                            backButton.textContent = 'Back';
+                            backButton.addEventListener('click', fetchUpcomingMovies);
+                            detailContainer.appendChild(backButton);
+
+                            // Clear and append the detail container to the main content
+                            mainContent.innerHTML = '';
+                            mainContent.appendChild(detailContainer);
+                        })
+                        .catch(error => console.error('Error fetching similar movies:', error));
+                })
+                .catch(error => console.error('Error fetching movie details:', error));
+        }
+
+        // Check if a movie is cam recorded 
+        function checkCamRecorded(movie) {
+            // Example: Check if the overview contains certain keywords indicating it's cam recorded
+            const camRecordedKeywords = ['cam', 'recording', 'low quality'];
+            const overview = movie.overview.toLowerCase();
+            return camRecordedKeywords.some(keyword => overview.includes(keyword));
+        }
+
+        // Get genre name by ID 
+        function getGenreName(genreId) {
+            const genreMap = {
+                28: 'Action',
+                12: 'Adventure',
+                
+            };
+            return genreMap[genreId];
+        }
+
+        // Debounce function to limit API calls while typing
+        function debounce(func, delay) {
+            let timeout;
+            return function () {
+                const context = this;
+                const args = arguments;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                    func.apply(context, args);
+                }, delay);
+            };
+        }
+    </script>
+</body>
+</html>
